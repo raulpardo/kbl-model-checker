@@ -190,7 +190,7 @@ toString(Formula) ->
     knowledge   -> "K_" ++ atom_to_list(Formula#formula.agent1) ++ " (" ++ toString(Formula#formula.left) ++ ")";
 
     conjunction -> "(" ++ toString(Formula#formula.left) ++
-                   " and " ++
+                   ") and (" ++
                    toString(Formula#formula.right) ++ ")"
   end.
 
