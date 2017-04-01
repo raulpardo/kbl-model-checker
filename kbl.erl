@@ -21,7 +21,7 @@
 -record(snm, {agents, connections, actions, environment, kbs, pps}).
 
 % Connections
-%-record(connections, {name, pairs}).
+%-record(connection_name, {name, pairs}).
 
 % Actions
 %-record(actions, {name, pairs}).
@@ -54,7 +54,9 @@ main() ->
   printfFormula(PSI),
   io:fwrite("~p~n", [satisfaction(SNM,PSI)]),
   printfFormula(GAMMA),
-  io:fwrite("~p~n", [satisfaction(SNM,GAMMA)]).
+  io:fwrite("~p~n", [satisfaction(SNM,GAMMA)]),
+
+  toString(PSI).
 
 
 % Returns the following SNM:
@@ -62,7 +64,7 @@ main() ->
 %   alice                   bob           environment
 % +-------+              +-------+        +-------+
 % |       |      c       |       |        |       |
-% |   p   +-------------^+   q   |        |   p   |
+% |  p,q  +-------------^+   q   |        |   p   |
 % |       |              |       |        |       |
 % +---+---+              +----+--+        +-------+
 %     ^                       |
@@ -75,13 +77,31 @@ main() ->
 %            +-------+
 
 createSNM() ->
+  % Agents
   Agents = [alice,bob,charlie],
+
+  % Pairs of a generic connection
   Connections = [{alice,bob}, {bob,charlie}],
+
+  % Pair of a generic action
   Actions = [{charlie,alice}],
+
+  % Environment's knowledge base
   Environment = [#formula{type=proposition, value=p}],
-  Alice_KB = #kb{agent=alice, kb=[#formula{type=proposition, value=p}]},
-  Bob_KB = #kb{agent=bob, kb=[#formula{type=proposition, value=q}]},
+
+  % p
+  P = #formula{type=proposition, value=p},
+  % q
+  Q = #formula{type=proposition, value=q},
+  % K_alice p
+  % K_Alice_P = #formula{type=knowledge, agent1=alice, left=P},
+
+  % Agents knowledge bases
+  Alice_KB = #kb{agent=alice, kb=[P,Q]},
+  Bob_KB = #kb{agent=bob, kb=[Q]},
   Charlie_KB = #kb{agent=charlie, kb=[]},
+
+  % Putting everything together
   #snm{agents=Agents,
        connections=Connections,
        actions=Actions,
@@ -103,7 +123,28 @@ satisfaction(SNM, Formula) ->
     conjunction -> satisfaction(SNM, Formula#formula.left) and satisfaction(SNM, Formula#formula.right);
 
     knowledge   -> Agent_KB = find_kb(Formula#formula.agent1, SNM#snm.kbs),
-                   lists:member(Formula#formula.left, Agent_KB#kb.kb)
+                   check_kb(Formula#formula.left, Agent_KB#kb.kb)                  
+  end.
+
+
+% Check whether Formula is derivable from KB using MOLTAP
+check_kb(Formula, KB) ->
+  KB_Conj = create_conjunction(KB,[]),
+  ToCheck = KB_Conj ++ " -> " ++ toString(Formula),
+  Command = "/home/pardo/moltap/moltap -f '" ++ ToCheck ++"'", % TODO: Add variable with moltap directory.
+                                                               % TODO: Check whether moltap is installed.
+  io:fwrite("To check by moltap: ~s~n",[ToCheck]),
+  case os:cmd(Command) of
+    "true\n" -> true;
+    "false\n" -> false
+  end.
+
+% Auxiliary function to create the conjunction of the KB of an agent
+create_conjunction([H|T],Acc) ->
+  case length([H|T]) of
+    1 -> Acc ++ toString(H);
+    _ -> NewAcc = Acc ++ toString(H) ++ " and ",
+         create_conjunction(T,NewAcc)
   end.
 
 find_kb(_Agent, []) ->
@@ -115,27 +156,44 @@ find_kb(Agent, [KB | T]) ->
     _     -> find_kb(Agent, T)
   end.
 
-% Recursively print all the elements of the formula.
-printFormula(Formula) ->
-    case Formula#formula.type of
-      proposition -> io:fwrite("~p", [atom_to_list(Formula#formula.value)]);
-
-      connection  -> io:fwrite("c(~p,~p)", [atom_to_list(Formula#formula.agent1), atom_to_list(Formula#formula.agent2)]);
-
-      action      -> io:fwrite("a(~p,~p)", [atom_to_list(Formula#formula.agent1), atom_to_list(Formula#formula.agent2)]);
-
-      negation    -> io:fwrite("¬"),
-                     printFormula(Formula#formula.left);
-
-      knowledge   -> io:fwrite("K_~p",[atom_to_list(Formula#formula.agent1)]),
-                     printFormula(Formula#formula.left);
-
-      conjunction -> printFormula(Formula#formula.left),
-                     io:fwrite(" Λ "),
-                     printFormula(Formula#formula.right)
-    end.
-
 % Add a break line after printing
 printfFormula(Formula) ->
-  printFormula(Formula),
-  io:fwrite("~n").
+  io:fwrite("~s~n", [toString(Formula)]).
+
+% Converts Formula into a string
+toString(Formula) ->
+  case Formula#formula.type of
+    proposition -> atom_to_list(Formula#formula.value);
+
+    connection  -> "c_"++atom_to_list(Formula#formula.agent1) ++ "_" ++ atom_to_list(Formula#formula.agent2);
+
+    action      -> "a_"++atom_to_list(Formula#formula.agent1) ++ "_" ++ atom_to_list(Formula#formula.agent2);
+
+    negation    -> "not " ++ toString(Formula#formula.left);
+
+    knowledge   -> "K_" ++ atom_to_list(Formula#formula.agent1) ++ " " ++ toString(Formula#formula.left);
+
+    conjunction -> toString(Formula#formula.left) ++
+                   " and " ++
+                   toString(Formula#formula.right)
+  end.
+
+% Recursively print all the elements of the formula. === NOT USED FOR NOW
+% printFormula(Formula) ->
+%     case Formula#formula.type of
+%       proposition -> io:fwrite("~p", [atom_to_list(Formula#formula.value)]);
+%
+%       connection  -> io:fwrite("c(~p,~p)", [atom_to_list(Formula#formula.agent1), atom_to_list(Formula#formula.agent2)]);
+%
+%       action      -> io:fwrite("a(~p,~p)", [atom_to_list(Formula#formula.agent1), atom_to_list(Formula#formula.agent2)]);
+%
+%       negation    -> io:fwrite("¬"),
+%                      printFormula(Formula#formula.left);
+%
+%       knowledge   -> io:fwrite("K_~p",[atom_to_list(Formula#formula.agent1)]),
+%                      printFormula(Formula#formula.left);
+%
+%       conjunction -> printFormula(Formula#formula.left),
+%                      io:fwrite(" Λ "),
+%                      printFormula(Formula#formula.right)
+%     end.
