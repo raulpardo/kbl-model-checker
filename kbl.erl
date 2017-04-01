@@ -57,8 +57,23 @@ main() ->
   io:fwrite("~p~n", [satisfaction(SNM,GAMMA)]).
 
 
+% Returns the following SNM:
 
-% Returns a predefined SNM
+%   alice                   bob           environment
+% +-------+              +-------+        +-------+
+% |       |      c       |       |        |       |
+% |   p   +-------------^+   q   |        |   p   |
+% |       |              |       |        |       |
+% +---+---+              +----+--+        +-------+
+%     ^                       |
+%     |                       |
+%     |       charlie         |c
+%     |      +-------+        |
+%     |      |       |        |
+%     +------+       +^-------+
+%     a      |       |
+%            +-------+
+
 createSNM() ->
   Agents = [alice,bob,charlie],
   Connections = [{alice,bob}, {bob,charlie}],
