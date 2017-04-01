@@ -45,6 +45,12 @@ main() ->
   ACT = #formula{type=action, agent1=charlie, agent2=alice},
   GAMMA = #formula{type=conjunction, left=CON, right=ACT},
 
+  % Create formula K_Charlie_Tauto = K_charlie \neg (\neg p \wedge p)
+  NP = #formula{type=negation, left=P},
+  C = #formula{type=conjunction, left=NP, right=P},
+  N = #formula{type=negation, left=C},
+  K_Charlie_Tauto = #formula{type=knowledge, agent1=charlie, left=N},
+
   % Creates an example social network model
   SNM = createSNM(),
 
@@ -55,6 +61,8 @@ main() ->
   io:fwrite("~p~n", [satisfaction(SNM,PSI)]),
   printfFormula(GAMMA),
   io:fwrite("~p~n", [satisfaction(SNM,GAMMA)]),
+  printfFormula(K_Charlie_Tauto),
+  io:fwrite("~p~n", [satisfaction(SNM,K_Charlie_Tauto)]),
 
   toString(PSI).
 
@@ -123,14 +131,21 @@ satisfaction(SNM, Formula) ->
     conjunction -> satisfaction(SNM, Formula#formula.left) and satisfaction(SNM, Formula#formula.right);
 
     knowledge   -> Agent_KB = find_kb(Formula#formula.agent1, SNM#snm.kbs),
-                   check_kb(Formula#formula.left, Agent_KB#kb.kb)                  
+                   check_kb(Formula#formula.left, Agent_KB#kb.kb)
   end.
 
 
 % Check whether Formula is derivable from KB using MOLTAP
 check_kb(Formula, KB) ->
-  KB_Conj = create_conjunction(KB,[]),
-  ToCheck = KB_Conj ++ " -> " ++ toString(Formula),
+  case length(KB) of
+    0 -> call_moltap(toString(Formula)); % In case Formula is a tautology
+    _ -> KB_Conj = create_conjunction(KB,[]),
+         ToCheck = KB_Conj ++ " -> " ++ toString(Formula),
+         call_moltap(ToCheck)
+  end.
+
+% We call the modal theorem prover moltap
+call_moltap(ToCheck) ->
   Command = "/home/pardo/moltap/moltap -f '" ++ ToCheck ++"'", % TODO: Add variable with moltap directory.
                                                                % TODO: Check whether moltap is installed.
   io:fwrite("To check by moltap: ~s~n",[ToCheck]),
@@ -140,11 +155,12 @@ check_kb(Formula, KB) ->
   end.
 
 % Auxiliary function to create the conjunction of the KB of an agent
+% We're assuming that the length of [H|T] is greater than 0
 create_conjunction([H|T],Acc) ->
   case length([H|T]) of
-    1 -> Acc ++ toString(H);
-    _ -> NewAcc = Acc ++ toString(H) ++ " and ",
-         create_conjunction(T,NewAcc)
+    1 -> Acc ++ "(" ++ toString(H) ++ ")";
+    _ -> NewAcc = Acc ++ "(" ++ toString(H) ++ " and ",
+         create_conjunction(T,NewAcc) ++ ")"
   end.
 
 find_kb(_Agent, []) ->
@@ -169,13 +185,13 @@ toString(Formula) ->
 
     action      -> "a_"++atom_to_list(Formula#formula.agent1) ++ "_" ++ atom_to_list(Formula#formula.agent2);
 
-    negation    -> "not " ++ toString(Formula#formula.left);
+    negation    -> "not (" ++ toString(Formula#formula.left) ++ ")";
 
-    knowledge   -> "K_" ++ atom_to_list(Formula#formula.agent1) ++ " " ++ toString(Formula#formula.left);
+    knowledge   -> "K_" ++ atom_to_list(Formula#formula.agent1) ++ " (" ++ toString(Formula#formula.left) ++ ")";
 
-    conjunction -> toString(Formula#formula.left) ++
+    conjunction -> "(" ++ toString(Formula#formula.left) ++
                    " and " ++
-                   toString(Formula#formula.right)
+                   toString(Formula#formula.right) ++ ")"
   end.
 
 % Recursively print all the elements of the formula. === NOT USED FOR NOW
